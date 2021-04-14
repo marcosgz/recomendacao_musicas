@@ -1,0 +1,9 @@
+/.bundle/
+/.yardoc
+/_yardoc/
+/data/musicas
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/

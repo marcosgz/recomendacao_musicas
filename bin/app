@@ -1,0 +1,65 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'bundler/setup'
+require 'recomendacao'
+require 'pathname'
+require 'gtk3'
+
+
+path = Pathname.new(ARGV.pop || './data/musicas')
+musicas = Dir[path.join('**/*.mp3')].each_with_index.map do |f, idx|
+  Recomendacao::Musica.new(filename: f, id: idx + 1)
+end.select(&:mp3?)
+@playlist = Recomendacao::Playlist.new(musicas)
+
+app = Gtk::Application.new('org.gtk.example', :flags_none)
+app.signal_connect 'activate' do |application|
+  # create a new window, and set its title
+  window = Gtk::ApplicationWindow.new(application)
+  window.set_title('Musicas')
+  window.set_border_width(10)
+
+  vbox = Gtk::Box.new :vertical, 2
+  @display = Gtk::Label.new('Musicas')
+  vbox.pack_start @display, expand: false, fill: true, padding: 0
+  @display.text = 'Clique no play'
+
+  # Here we construct the container that is going pack our buttons
+  grid = Gtk::Grid.new
+  @btn_prev = Gtk::Button.new(label: 'Anterior')
+  @btn_play = Gtk::Button.new(label: 'Reproduzir')
+  @btn_stop = Gtk::Button.new(label: 'Parar')
+  @btn_next = Gtk::Button.new(label: 'Próxima')
+
+  # Retorna uma instancia de player
+  def current_music(music)
+    @display.text = music ? music.nome : ''
+  end
+
+  @btn_play.signal_connect('clicked') do
+    current_music(@playlist.play!)
+  end
+  @btn_prev.signal_connect('clicked') do
+    current_music(@playlist.anterior!)
+  end
+  @btn_stop.signal_connect('clicked') do
+    current_music(@playlist.stop!)
+  end
+  @btn_next.signal_connect('clicked') do
+    current_music(@playlist.proxima!)
+  end
+
+  grid.attach @btn_prev, 0, 0, 1, 1
+  grid.attach @btn_stop, 1, 0, 1, 1
+  grid.attach @btn_play, 2, 0, 1, 1
+  grid.attach @btn_next, 3, 0, 1, 1
+
+  vbox.pack_start grid, expand: false, fill: false, padding: 0
+  window.add(vbox)
+  window.show_all
+end
+
+status = app.run([$0] + ARGV)
+
+puts status

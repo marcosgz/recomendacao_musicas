@@ -1,0 +1,104 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'bundler/setup'
+require 'recomendacao'
+# require 'ruby-progressbar'
+require 'pathname'
+require 'audite'
+require 'pry'
+require 'ruby-graphviz'
+
+path = ARGV[0] || './data/musicas'
+
+def usage(dir = nil)
+  if dir
+    puts "Oops. Nenhuma musica MP3 encontrada no diretório #{dir}"
+  else
+    puts 'Oops. Nenhuma musica'
+  end
+  puts 'Modo de uso: ./bin/player /diretório/com/musicas/mp3'
+  exit(0)
+end
+usage if path.nil? || path == ''
+
+path = Pathname.new(path)
+
+files = Dir[path.join('**/*.mp3')]
+usage(path.to_s) if files.none?
+
+musicas = files.each_with_index.map do |f, idx|
+  Recomendacao::Musica.new(filename: f, id: idx + 1)
+end.select(&:mp3?)
+
+@playlist = Recomendacao::Playlist.new(musicas)
+
+@player = Audite.new
+@player.events.on(:complete) do
+  proxima!
+end
+# @player.events.on(:position_change) do |pos|
+#   @progressbar.progress = pos.to_i if @progressbar
+# end
+
+def posicionar_musica(musica)
+  return @player unless musica
+  puts format('Musica: %<m>p', m: musica)
+
+
+  @player.stop_stream if @player.active
+  @player.load(musica.filename)
+  # @progressbar&.finish
+  # @progressbar = ProgressBar.create(title: "♫ #{musica.nome}", total: @player.length_in_seconds)
+  @player
+end
+
+def play!
+  posicionar_musica(@playlist.play!).start_stream
+  @playlist.reproduzindo?
+end
+
+def stop!
+  posicionar_musica(@playlist.stop!).stop_stream
+  @playlist.reproduzindo?
+end
+
+def next!
+  posicionar_musica(@playlist.proxima!).tap do |p|
+    p.start_stream if @playlist.reproduzindo?
+  end
+  @playlist.reproduzindo?
+end
+
+def prev!
+  posicionar_musica(@playlist.anterior!).tap do |p|
+    p.start_stream if @playlist.reproduzindo?
+  end
+  @playlist.reproduzindo?
+end
+
+def graph!
+  g = GraphViz.new( :G, type: :digraph)
+  nodes = {}
+  @playlist.musicas.each do |musica|
+    m_node = g.add_nodes(musica.nome)
+    musica.keywords.each do |k|
+      nodes[k] ||= g.add_nodes(k)
+      g.add_edges(m_node, nodes[k])
+    end
+  end
+
+  filename = Recomendacao.root.join('tmp/grafo.png')
+  g.output(png: filename)
+  puts filename
+end
+
+puts 'Comandos:'
+puts '* play! => Iniciar a reprodução.'
+puts '* stop! => Parar a reprodução.'
+puts '* next! => Mudar para proxima música.'
+puts '* prev! => Voltar para música anterior.'
+puts '* graph! => Gerar diagrama das musicas.'
+puts '* exit => Sair'
+
+Pry.start
